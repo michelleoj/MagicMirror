@@ -76,36 +76,36 @@ var Module = Class.extend({
 	/* getDom()
 	 * This method generates the dom which needs to be displayed. This method is called by the Magic Mirror core.
 	 * This method can to be subclassed if the module wants to display info on the mirror.
-	 * Alternatively, the getTemplete method could be subclassed.
+	 * Alternatively, the getTemplate method could be subclassed.
 	 *
-	 * return domobject - The dom to display.
+	 * return DomObject | Promise - The dom or a promise with the dom to display.
 	 */
 	getDom: function () {
-		var div = document.createElement("div");
-		var template = this.getTemplate();
-		var templateData = this.getTemplateData();
+		var self = this;
+		return new Promise(function(resolve) {
+			var div = document.createElement("div");
+			var template = self.getTemplate();
+			var templateData = self.getTemplateData();
 
-		// Check to see if we need to render a template string or a file.
-		if (/^.*((\.html)|(\.njk))$/.test(template)) {
-			// the template is a filename
-			this.nunjucksEnvironment().render(template, templateData, function (err, res) {
-				if (err) {
-					Log.error(err)
-				}
+			// Check to see if we need to render a template string or a file.
+			if (/^.*((\.html)|(\.njk))$/.test(template)) {
+				// the template is a filename
+				self.nunjucksEnvironment().render(template, templateData, function (err, res) {
+					if (err) {
+						Log.error(err);
+					}
 
-				// The inner content of the div will be set after the template is received.
-				// This isn't the most optimal way, but since it's near instant
-				// it probably won't be an issue.
-				// If it gives problems, we can always add a way to pre fetch the templates.
-				// Let's not over optimise this ... KISS! :)
-				div.innerHTML = res;
-			});
-		} else {
-			// the template is a template string.
-			div.innerHTML = this.nunjucksEnvironment().renderString(template, templateData);
-		}
+					div.innerHTML = res;
 
-		return div;
+					resolve(div);
+				});
+			} else {
+				// the template is a template string.
+				div.innerHTML = self.nunjucksEnvironment().renderString(template, templateData);
+
+				resolve(div);
+			}
+		});
 	},
 
 	/* getHeader()
@@ -121,7 +121,7 @@ var Module = Class.extend({
 
 	/* getTemplate()
 	 * This method returns the template for the module which is used by the default getDom implementation.
-	 * This method needs to be subclassed if the module wants to use a tempate.
+	 * This method needs to be subclassed if the module wants to use a template.
 	 * It can either return a template sting, or a template filename.
 	 * If the string ends with '.html' it's considered a file from within the module's folder.
 	 *
@@ -138,7 +138,7 @@ var Module = Class.extend({
 	 * return Object
 	 */
 	getTemplateData: function () {
-		return {}
+		return {};
 	},
 
 	/* notificationReceived(notification, payload, sender)
@@ -164,7 +164,7 @@ var Module = Class.extend({
 	 * @returns Nunjucks Environment
 	 */
 	nunjucksEnvironment: function() {
-		if (this._nunjucksEnvironment != null) {
+		if (this._nunjucksEnvironment !== null) {
 			return this._nunjucksEnvironment;
 		}
 
@@ -175,7 +175,7 @@ var Module = Class.extend({
 			lstripBlocks: true
 		});
 		this._nunjucksEnvironment.addFilter("translate", function(str) {
-			return self.translate(str)
+			return self.translate(str);
 		});
 
 		return this._nunjucksEnvironment;
@@ -212,7 +212,7 @@ var Module = Class.extend({
 	/* setData(data)
 	 * Set the module data.
 	 *
-	 * argument data obejct - Module data.
+	 * argument data object - Module data.
 	 */
 	setData: function (data) {
 		this.data = data;
@@ -226,14 +226,14 @@ var Module = Class.extend({
 	/* setConfig(config)
 	 * Set the module config and combine it with the module defaults.
 	 *
-	 * argument config obejct - Module config.
+	 * argument config object - Module config.
 	 */
 	setConfig: function (config) {
 		this.config = Object.assign({}, this.defaults, config);
 	},
 
 	/* socket()
-	 * Returns a socket object. If it doesn"t exist, it"s created.
+	 * Returns a socket object. If it doesn't exist, it"s created.
 	 * It also registers the notification callback.
 	 */
 	socket: function () {
@@ -438,11 +438,10 @@ Module.create = function (name) {
 	var ModuleClass = Module.extend(clonedDefinition);
 
 	return new ModuleClass();
-
 };
 
 /* cmpVersions(a,b)
-* Compare two symantic version numbers and return the difference.
+* Compare two semantic version numbers and return the difference.
 *
 * argument a string - Version number a.
 * argument a string - Version number b.
@@ -477,11 +476,3 @@ Module.register = function (name, moduleDefinition) {
 	Log.log("Module registered: " + name);
 	Module.definitions[name] = moduleDefinition;
 };
-
-if (typeof exports != "undefined") { // For testing purpose only
-	// A good a idea move the function cmpversions a helper file.
-	// It's used into other side.
-	exports._test = {
-		cmpVersions: cmpVersions
-	}
-}

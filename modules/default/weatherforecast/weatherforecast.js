@@ -36,6 +36,7 @@ Module.register("weatherforecast",{
 
 		appendLocationNameToHeader: true,
 		calendarClass: "calendar",
+		tableClass: "small",
 
 		roundTemp: false,
 
@@ -81,7 +82,7 @@ Module.register("weatherforecast",{
 	getTranslations: function() {
 		// The translations for the default modules are defined in the core translation files.
 		// Therefor we can just return false. Otherwise we should have returned a dictionary.
-		// If you're trying to build yiur own module including translations, check out the documentation.
+		// If you're trying to build your own module including translations, check out the documentation.
 		return false;
 	},
 
@@ -117,7 +118,7 @@ Module.register("weatherforecast",{
 		}
 
 		var table = document.createElement("table");
-		table.className = "small";
+		table.className = this.config.tableClass;
 
 		for (var f in this.forecast) {
 			var forecast = this.forecast[f];
@@ -142,13 +143,16 @@ Module.register("weatherforecast",{
 			iconCell.appendChild(icon);
 
 			var degreeLabel = "";
+			if (this.config.units === "metric" || this.config.units === "imperial") {
+				degreeLabel += "°";
+			}
 			if(this.config.scale) {
 				switch(this.config.units) {
 				case "metric":
-					degreeLabel = " &deg;C";
+					degreeLabel += "C";
 					break;
 				case "imperial":
-					degreeLabel = " &deg;F";
+					degreeLabel += "F";
 					break;
 				case "default":
 					degreeLabel = "K";
@@ -176,7 +180,7 @@ Module.register("weatherforecast",{
 					rainCell.innerHTML = "";
 				} else {
 					if(config.units !== "imperial") {
-						rainCell.innerHTML = forecast.rain + " mm";
+						rainCell.innerHTML = parseFloat(forecast.rain).toFixed(1) + " mm";
 					} else {
 						rainCell.innerHTML = (parseFloat(forecast.rain) / 25.4).toFixed(2) + " in";
 					}
@@ -236,7 +240,7 @@ Module.register("weatherforecast",{
 
 	/* updateWeather(compliments)
 	 * Requests new data from openweather.org.
-	 * Calls processWeather on succesfull response.
+	 * Calls processWeather on successful response.
 	 */
 	updateWeather: function() {
 		if (this.config.appid === "") {
@@ -257,9 +261,8 @@ Module.register("weatherforecast",{
 				} else if (this.status === 401) {
 					self.updateDom(self.config.animationSpeed);
 
-					if (self.config.forecastEndpoint == "forecast/daily") {
+					if (self.config.forecastEndpoint === "forecast/daily") {
 						self.config.forecastEndpoint = "forecast";
-						self.config.maxNumberOfDays = self.config.maxNumberOfDays * 8;
 						Log.warn(self.name + ": Your AppID does not support long term forecasts. Switching to fallback endpoint.");
 					}
 
@@ -288,7 +291,7 @@ Module.register("weatherforecast",{
 		} else if(this.config.location) {
 			params += "q=" + this.config.location;
 		} else if (this.firstEvent && this.firstEvent.geo) {
-			params += "lat=" + this.firstEvent.geo.lat + "&lon=" + this.firstEvent.geo.lon
+			params += "lat=" + this.firstEvent.geo.lat + "&lon=" + this.firstEvent.geo.lon;
 		} else if (this.firstEvent && this.firstEvent.location) {
 			params += "q=" + this.firstEvent.location;
 		} else {
@@ -298,12 +301,6 @@ Module.register("weatherforecast",{
 
 		params += "&units=" + this.config.units;
 		params += "&lang=" + this.config.lang;
-		/*
-		 * Submit a specific number of days to forecast, between 1 to 16 days.
-		 * The OpenWeatherMap API properly handles values outside of the 1 - 16 range and returns 7 days by default.
-		 * This is simply being pedantic and doing it ourselves.
-		 */
-		params += "&cnt=" + (((this.config.maxNumberOfDays < 1) || (this.config.maxNumberOfDays > 16)) ? 7 * 8 : this.config.maxNumberOfDays);
 		params += "&APPID=" + this.config.appid;
 
 		return params;
@@ -318,7 +315,7 @@ Module.register("weatherforecast",{
 	 */
 	parserDataWeather: function(data) {
 		if (data.hasOwnProperty("main")) {
-			data["temp"] = {"min": data.main.temp_min, "max": data.main.temp_max}
+			data["temp"] = {"min": data.main.temp_min, "max": data.main.temp_max};
 		}
 		return data;
 	},
@@ -333,15 +330,22 @@ Module.register("weatherforecast",{
 
 		this.forecast = [];
 		var lastDay = null;
-		var forecastData = {}
+		var forecastData = {};
 
 		for (var i = 0, count = data.list.length; i < count; i++) {
 
 			var forecast = data.list[i];
 			this.parserDataWeather(forecast); // hack issue #1017
 
-			var day = moment(forecast.dt, "X").format("ddd");
-			var hour = moment(forecast.dt, "X").format("H");
+			var day;
+			var hour;
+			if(!!forecast.dt_txt) {
+				day = moment(forecast.dt_txt, "YYYY-MM-DD hh:mm:ss").format("ddd");
+				hour = moment(forecast.dt_txt, "YYYY-MM-DD hh:mm:ss").format("H");
+			} else {
+				day = moment(forecast.dt, "X").format("ddd");
+				hour = moment(forecast.dt, "X").format("H");
+			}
 
 			if (day !== lastDay) {
 				var forecastData = {
@@ -349,11 +353,16 @@ Module.register("weatherforecast",{
 					icon: this.config.iconTable[forecast.weather[0].icon],
 					maxTemp: this.roundValue(forecast.temp.max),
 					minTemp: this.roundValue(forecast.temp.min),
-					rain: this.roundValue(forecast.rain)
+					rain: forecast.rain
 				};
 
 				this.forecast.push(forecastData);
 				lastDay = day;
+
+				// Stop processing when maxNumberOfDays is reached
+				if (this.forecast.length === this.config.maxNumberOfDays) {
+					break;
+				}
 			} else {
 				//Log.log("Compare max: ", forecast.temp.max, parseFloat(forecastData.maxTemp));
 				forecastData.maxTemp = forecast.temp.max > parseFloat(forecastData.maxTemp) ? this.roundValue(forecast.temp.max) : forecastData.maxTemp;

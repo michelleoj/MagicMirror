@@ -31,7 +31,11 @@ Module.register("compliments", {
 		},
 		updateInterval: 30000,
 		remoteFile: null,
-		fadeSpeed: 4000
+		fadeSpeed: 4000,
+		morningStartTime: 3,
+		morningEndTime: 12,
+		afternoonStartTime: 12,
+		afternoonEndTime: 17
 	},
 
 	// Set currentweather from module
@@ -55,23 +59,26 @@ Module.register("compliments", {
 
 		this.lastComplimentIndex = -1;
 
+		var self = this;
 		if (
 			this
 				.config
-				.remoteFile !=
+				.remoteFile !==
 			null
 		) {
 			this.complimentFile(
-				response => {
-					this.config.compliments = JSON.parse(
+				function(
+					response
+				) {
+					self.config.compliments = JSON.parse(
 						response
 					);
+					self.updateDom();
 				}
 			);
 		}
 
 		// Schedule update timer.
-		var self = this;
 		setInterval(
 			function() {
 				self.updateDom(
@@ -136,9 +143,13 @@ Module.register("compliments", {
 
 		if (
 			hour >=
-				3 &&
+				this
+					.config
+					.morningStartTime &&
 			hour <
-				12 &&
+				this
+					.config
+					.morningEndTime &&
 			this.config.compliments.hasOwnProperty(
 				"morning"
 			)
@@ -148,9 +159,13 @@ Module.register("compliments", {
 			);
 		} else if (
 			hour >=
-				12 &&
+				this
+					.config
+					.afternoonStartTime &&
 			hour <
-				17 &&
+				this
+					.config
+					.afternoonEndTime &&
 			this.config.compliments.hasOwnProperty(
 				"afternoon"
 			)
@@ -210,25 +225,39 @@ Module.register("compliments", {
 	complimentFile: function(
 		callback
 	) {
-		var xobj = new XMLHttpRequest();
+		var xobj = new XMLHttpRequest(),
+			isRemote =
+				this.config.remoteFile.indexOf(
+					"http://"
+				) ===
+					0 ||
+				this.config.remoteFile.indexOf(
+					"https://"
+				) ===
+					0,
+			path = isRemote
+				? this
+					.config
+					.remoteFile
+				: this.file(
+					this
+						.config
+						.remoteFile
+				  );
 		xobj.overrideMimeType(
 			"application/json"
 		);
 		xobj.open(
 			"GET",
-			this.file(
-				this
-					.config
-					.remoteFile
-			),
+			path,
 			true
 		);
 		xobj.onreadystatechange = function() {
 			if (
-				xobj.readyState ==
+				xobj.readyState ===
 					4 &&
-				xobj.status ==
-					"200"
+				xobj.status ===
+					200
 			) {
 				callback(
 					xobj.responseText
@@ -272,7 +301,7 @@ Module.register("compliments", {
 			? this
 				.config
 				.classes
-			: "thin xlarge bright";
+			: "thin xlarge bright pre-line";
 		wrapper.appendChild(
 			compliment
 		);
@@ -335,7 +364,7 @@ Module.register("compliments", {
 		sender
 	) {
 		if (
-			notification ==
+			notification ===
 			"CURRENTWEATHER_DATA"
 		) {
 			this.setCurrentWeatherType(
